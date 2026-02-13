@@ -9,7 +9,7 @@ import uvicorn
 from datetime import datetime
 
 from ..models import Email, EmailThread, EmailCategory, Priority
-from ..ingestion import MockEmailGenerator
+from ..ingestion import MockEmailGenerator, GmailIngestor, OutlookIngestor, IMAPIngestor
 from ..triage import TriageAgent, RuleBasedClassifier
 from ..priority import PriorityScorer
 from ..compression import EmailThreadCompressor
@@ -409,6 +409,164 @@ async def reset_database():
     threads_db = []
     
     return {"status": "success", "message": "Database cleared"}
+
+
+@app.post("/api/ingest/gmail")
+async def ingest_gmail(max_emails: int = 50, unread_only: bool = False):
+    """
+    Ingest emails from Gmail
+    
+    Parameters:
+    - max_emails: Maximum number of emails to fetch
+    - unread_only: Fetch only unread emails
+    """
+    global emails_db
+    
+    if not GmailIngestor:
+        raise HTTPException(
+            status_code=503, 
+            detail="Gmail integration not available. Install: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client"
+        )
+    
+    try:
+        ingestor = GmailIngestor()
+        
+        if unread_only:
+            new_emails = ingestor.fetch_unread_emails(max_results=max_emails)
+        else:
+            new_emails = ingestor.fetch_emails(max_results=max_emails)
+        
+        emails_db.extend(new_emails)
+        
+        return {
+            "status": "success",
+            "source": "gmail",
+            "emails_fetched": len(new_emails),
+            "total_emails": len(emails_db),
+            "message": f"Fetched {len(new_emails)} emails from Gmail"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gmail ingestion failed: {str(e)}")
+
+
+@app.post("/api/ingest/outlook")
+async def ingest_outlook(
+    client_id: str,
+    max_emails: int = 50,
+    unread_only: bool = False
+):
+    """
+    Ingest emails from Outlook/Office 365
+    
+    Parameters:
+    - client_id: Azure AD Application (client) ID
+    - max_emails: Maximum number of emails to fetch
+    - unread_only: Fetch only unread emails
+    """
+    global emails_db
+    
+    if not OutlookIngestor:
+        raise HTTPException(
+            status_code=503,
+            detail="Outlook integration not available. Install: pip install msal"
+        )
+    
+    try:
+        ingestor = OutlookIngestor(client_id=client_id)
+        
+        if unread_only:
+            new_emails = ingestor.fetch_unread_emails(max_results=max_emails)
+        else:
+            new_emails = ingestor.fetch_emails(max_results=max_emails)
+        
+        emails_db.extend(new_emails)
+        
+        return {
+            "status": "success",
+            "source": "outlook",
+            "emails_fetched": len(new_emails),
+            "total_emails": len(emails_db),
+            "message": f"Fetched {len(new_emails)} emails from Outlook"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Outlook ingestion failed: {str(e)}")
+
+
+@app.get("/api/ingest/status")
+async def get_ingestion_status():
+    """Check which email ingestion methods are available"""
+    return {
+        "gmail_available": GmailIngestor is not None,
+        "outlook_available": OutlookIngestor is not None,
+        "imap_available": IMAPIngestor is not None,
+        "mock_available": True,
+        "instructions": {
+            "gmail": "Install: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client",
+            "outlook": "Install: pip install msal",
+            "imap": "Built-in! Just provide email and app password"
+        }
+    }
+
+
+@app.post("/api/ingest/imap")
+async def ingest_imap(
+    email_address: str,
+    password: str,
+    provider: Optional[str] = None,
+    max_emails: int = 50,
+    unread_only: bool = False
+):
+    """
+    Ingest emails via IMAP (Universal - works with Gmail, Outlook, Yahoo, etc.)
+    
+    Parameters:
+    - email_address: Your email address
+    - password: Your app password (see provider instructions)
+    - provider: 'gmail', 'outlook', 'yahoo', 'icloud', 'aol', or leave blank for auto-detect
+    - max_emails: Maximum number of emails to fetch
+    - unread_only: Fetch only unread emails
+    
+    Setup Instructions:
+    - Gmail: Enable 2FA, generate App Password at myaccount.google.com/security
+    - Outlook: Generate App Password at account.microsoft.com/security
+    - Yahoo: Generate App Password at login.yahoo.com/account/security
+    """
+    global emails_db
+    
+    if not IMAPIngestor:
+        raise HTTPException(
+            status_code=503,
+            detail="IMAP not available (should always be available - check installation)"
+        )
+    
+    try:
+        ingestor = IMAPIngestor(
+            email_address=email_address,
+            password=password,
+            provider=provider
+        )
+        
+        if unread_only:
+            new_emails = ingestor.fetch_unread_emails(max_results=max_emails)
+        else:
+            new_emails = ingestor.fetch_emails(max_results=max_emails)
+        
+        ingestor.disconnect()
+        emails_db.extend(new_emails)
+        
+        return {
+            "status": "success",
+            "source": "imap",
+            "provider": provider or "auto-detected",
+            "emails_fetched": len(new_emails),
+            "total_emails": len(emails_db),
+            "message": f"Fetched {len(new_emails)} emails via IMAP"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"IMAP ingestion failed: {str(e)}")
 
 
 @app.get("/api/scaledown/status")
