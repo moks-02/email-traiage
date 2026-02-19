@@ -57,6 +57,77 @@ class EmailThread:
             for m in self.messages
         ])
     
+    def to_mongo(self):
+        """Convert to dictionary for MongoDB storage"""
+        return {
+            '_id': self.thread_id,
+            'thread_id': self.thread_id,
+            'subject': self.subject,
+            'participants': [p.to_dict() for p in self.participants],
+            # We will store full messages in thread for now to match current logic,
+            # though referencing by ID would be more normalized.
+            'messages': [m.to_mongo() for m in self.messages], 
+            
+            'message_count': self.message_count,
+            'first_message_at': self.first_message_at, # Keep as datetime
+            'last_message_at': self.last_message_at,   # Keep as datetime
+            
+            'compressed_summary': self.compressed_summary,
+            'compression_ratio': self.compression_ratio,
+            'original_token_count': self.original_token_count,
+            'compressed_token_count': self.compressed_token_count,
+            
+            'key_decisions': self.key_decisions,
+            'unresolved_questions': self.unresolved_questions,
+            'action_items_by_person': self.action_items_by_person,
+            'timeline': self.timeline,
+            
+            'category': self.category.value if self.category else None,
+            'priority_level': self.priority_level.name if self.priority_level else None
+        }
+
+    @staticmethod
+    def from_mongo(data: dict):
+        """Rehydrate EmailThread from MongoDB"""
+        from .email import Email
+        
+        # Parse datetimes
+        if isinstance(data.get('first_message_at'), str):
+            data['first_message_at'] = datetime.fromisoformat(data['first_message_at'])
+        if isinstance(data.get('last_message_at'), str):
+            data['last_message_at'] = datetime.fromisoformat(data['last_message_at'])
+            
+        # Parse enums
+        category = EmailCategory(data['category']) if data.get('category') else None
+        priority_level = Priority[data['priority_level']] if data.get('priority_level') else None
+        
+        # Rehydrate participants
+        participants = [EmailAddress(**p) for p in data.get('participants', [])]
+        
+        # Rehydrate messages
+        messages = [Email.from_mongo(m) for m in data.get('messages', [])]
+        
+        thread = EmailThread(
+            thread_id=data.get('thread_id', data.get('_id')),
+            subject=data.get('subject', ''),
+            participants=participants,
+            messages=messages,
+            message_count=data.get('message_count', 0),
+            first_message_at=data.get('first_message_at'),
+            last_message_at=data.get('last_message_at'),
+            compressed_summary=data.get('compressed_summary'),
+            compression_ratio=data.get('compression_ratio', 0.0),
+            original_token_count=data.get('original_token_count', 0),
+            compressed_token_count=data.get('compressed_token_count', 0),
+            key_decisions=data.get('key_decisions', []),
+            unresolved_questions=data.get('unresolved_questions', []),
+            action_items_by_person=data.get('action_items_by_person', {}),
+            timeline=data.get('timeline', []),
+            category=category,
+            priority_level=priority_level
+        )
+        return thread
+
     def to_dict(self):
         """Convert to dictionary for serialization"""
         return {

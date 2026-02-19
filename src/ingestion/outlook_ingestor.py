@@ -172,12 +172,20 @@ class OutlookIngestor:
             
             # Get other fields
             subject = message.get('subject', '(No Subject)')
-            body_text = message.get('body', {}).get('content', '')
+            body_content = message.get('body', {}).get('content', '')
+            body_type = message.get('body', {}).get('contentType', 'text')
             
-            # Strip HTML if needed
-            if message.get('body', {}).get('contentType') == 'html':
+            body_text = body_content
+            body_html = ''
+            
+            # Handle HTML content
+            if body_type.lower() == 'html':
                 import re
-                body_text = re.sub('<[^<]+?>', '', body_text)
+                body_html = body_content
+                body_text = re.sub('<[^<]+?>', '', body_content)
+            else:
+                # Wrap text in simple HTML if no HTML provided
+                body_html = f"<div>{body_content}</div>"
             
             # Parse date
             received_str = message.get('receivedDateTime', '')
@@ -199,6 +207,7 @@ class OutlookIngestor:
                 sender=sender,
                 recipients=recipients,
                 body_text=body_text.strip(),
+                body_html=body_html,
                 received_at=received_at,
                 category=self._guess_category_from_metadata(
                     importance, categories, is_read

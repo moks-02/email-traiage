@@ -99,8 +99,95 @@ class Email:
     # Raw source
     raw_data: Dict[str, Any] = field(default_factory=dict)
     
+    def to_mongo(self):
+        """Convert to dictionary for MongoDB storage (preserves datetime objects)"""
+        return {
+            '_id': self.id,  # Use email ID as MongoDB _id
+            'id': self.id,
+            'thread_id': self.thread_id,
+            'subject': self.subject,
+            'sender': self.sender.to_dict(),
+            'recipients': [r.to_dict() for r in self.recipients],
+            'cc': [c.to_dict() for c in self.cc],
+            'bcc': [b.to_dict() for b in self.bcc],
+            'body_text': self.body_text,
+            'body_html': self.body_html,
+            'received_at': self.received_at, # Keep as datetime
+            'sent_at': self.sent_at,         # Keep as datetime
+            'attachments': [a.to_dict() for a in self.attachments],
+            'in_reply_to': self.in_reply_to,
+            'references': self.references,
+            'category': self.category.value if self.category else None,
+            'priority_score': self.priority_score,
+            'priority_level': self.priority_level.name if self.priority_level else None,
+            'summary': self.summary,
+            'key_entities': self.key_entities,
+            'action_items': self.action_items,
+            'detected_intent': self.detected_intent,
+            'sentiment_score': self.sentiment_score,
+            'requires_response': self.requires_response,
+            'response_deadline': self.response_deadline, # Keep as datetime
+            'draft_response': self.draft_response,
+            'has_been_read': self.has_been_read
+        }
+
+    @staticmethod
+    def from_mongo(data: dict):
+        """Rehydrate Email object from MongoDB dictionary"""
+        
+        # Parse datetimes if they are strings (isoformat)
+        if isinstance(data.get('received_at'), str):
+            data['received_at'] = datetime.fromisoformat(data['received_at'])
+        if isinstance(data.get('sent_at'), str):
+            data['sent_at'] = datetime.fromisoformat(data['sent_at'])
+        if isinstance(data.get('response_deadline'), str):
+            data['response_deadline'] = datetime.fromisoformat(data['response_deadline'])
+            
+        # Parse enums
+        category = EmailCategory(data['category']) if data.get('category') else None
+        priority_level = Priority(data['priority_level']) if data.get('priority_level') else None
+        if isinstance(data.get('priority_level'), str) and data.get('priority_level'):
+             # If stored as string name
+             priority_level = Priority[data['priority_level']]
+        
+        # Parse nested objects
+        sender = EmailAddress(**data['sender']) if isinstance(data.get('sender'), dict) else EmailAddress(email="", name="")
+        recipients = [EmailAddress(**r) for r in data.get('recipients', [])]
+        cc = [EmailAddress(**c) for c in data.get('cc', [])]
+        bcc = [EmailAddress(**b) for b in data.get('bcc', [])]
+        attachments = [Attachment(**a) for a in data.get('attachments', [])]
+        
+        return Email(
+            id=data.get('id', data.get('_id')),
+            thread_id=data.get('thread_id', ''),
+            subject=data.get('subject', ''),
+            sender=sender,
+            recipients=recipients,
+            cc=cc,
+            bcc=bcc,
+            body_text=data.get('body_text', ''),
+            body_html=data.get('body_html', ''),
+            received_at=data.get('received_at'),
+            sent_at=data.get('sent_at'),
+            attachments=attachments,
+            in_reply_to=data.get('in_reply_to'),
+            references=data.get('references', []),
+            category=category,
+            priority_score=data.get('priority_score', 0.0),
+            priority_level=priority_level,
+            summary=data.get('summary'),
+            key_entities=data.get('key_entities', []),
+            action_items=data.get('action_items', []),
+            detected_intent=data.get('detected_intent'),
+            sentiment_score=data.get('sentiment_score', 0.0),
+            requires_response=data.get('requires_response', False),
+            response_deadline=data.get('response_deadline'),
+            draft_response=data.get('draft_response'),
+            has_been_read=data.get('has_been_read', False)
+        )
+
     def to_dict(self):
-        """Convert to dictionary for serialization"""
+        """Convert to dictionary for API/JSON serialization"""
         return {
             'id': self.id,
             'thread_id': self.thread_id,
@@ -129,3 +216,4 @@ class Email:
             'draft_response': self.draft_response,
             'has_been_read': self.has_been_read
         }
+

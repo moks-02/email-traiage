@@ -217,7 +217,7 @@ class IMAPIngestor:
             thread_id = in_reply_to if in_reply_to else message_id
             
             # Extract body
-            body_text = self._get_email_body(email_message)
+            body_text, body_html = self._get_email_body(email_message)
             
             # Create Email object
             return Email(
@@ -227,8 +227,9 @@ class IMAPIngestor:
                 sender=sender,
                 recipients=recipients,
                 body_text=body_text,
+                body_html=body_html,
                 received_at=received_at,
-                category=EmailCategory.WORK  # Will be classified later
+                category=None  # Will be classified by process-inbox
             )
         
         except Exception as e:
@@ -264,9 +265,10 @@ class IMAPIngestor:
             # Just email address
             return EmailAddress(name='', email=addr_str.strip())
     
-    def _get_email_body(self, email_message) -> str:
-        """Extract email body text"""
+    def _get_email_body(self, email_message) -> tuple[str, str]:
+        """Extract email body text and HTML"""
         body_text = ''
+        body_html = ''
         
         if email_message.is_multipart():
             # Multipart email
@@ -281,13 +283,11 @@ class IMAPIngestor:
                 try:
                     part_body = part.get_payload(decode=True)
                     if part_body:
+                        decoded_body = part_body.decode('utf-8', errors='ignore')
                         if content_type == 'text/plain':
-                            body_text += part_body.decode('utf-8', errors='ignore')
-                        elif content_type == 'text/html' and not body_text:
-                            # Fallback to HTML if no plain text
-                            html = part_body.decode('utf-8', errors='ignore')
-                            # Basic HTML stripping
-                            body_text = re.sub('<[^<]+?>', '', html)
+                            body_text += decoded_body
+                        elif content_type == 'text/html':
+                            body_html += decoded_body
                 except Exception as e:
                     pass
         else:
@@ -295,11 +295,23 @@ class IMAPIngestor:
             try:
                 payload = email_message.get_payload(decode=True)
                 if payload:
-                    body_text = payload.decode('utf-8', errors='ignore')
+                    decoded_body = payload.decode('utf-8', errors='ignore')
+                    content_type = email_message.get_content_type()
+                    
+                    if content_type == 'text/html':
+                        body_html = decoded_body
+                        # Strip HTML for text version
+                        body_text = re.sub('<[^<]+?>', '', decoded_body)
+                    else:
+                        body_text = decoded_body
             except:
                 body_text = str(email_message.get_payload())
-        
-        return body_text.strip()
+
+        # If we have HTML but no text, create text from HTML
+        if body_html and not body_text:
+            body_text = re.sub('<[^<]+?>', '', body_html)
+            
+        return body_text.strip(), body_html.strip()
     
     def _parse_date(self, date_str: str) -> datetime:
         """Parse date from email header"""

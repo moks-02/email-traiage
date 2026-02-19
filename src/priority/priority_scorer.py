@@ -1,7 +1,7 @@
 """Multi-factor priority scoring system"""
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict
 from dateutil import parser
 
@@ -152,7 +152,15 @@ class PriorityScorer:
     
     def _score_recency(self, email: Email) -> float:
         """Score based on how recent the email is (0-100)"""
-        age_hours = (datetime.now() - email.received_at).total_seconds() / 3600
+        now = datetime.now(timezone.utc)
+        email_time = email.received_at
+        
+        # Determine if email_time is offset-aware or naive
+        if email_time.tzinfo is None:
+            # Assume UTC if naive
+            email_time = email_time.replace(tzinfo=timezone.utc)
+            
+        age_hours = (now - email_time).total_seconds() / 3600
         
         if age_hours < 1:
             return 100

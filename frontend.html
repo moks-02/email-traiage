@@ -5,395 +5,705 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Email Triage Assistant - Dashboard</title>
     <style>
-        * {
+        *, *::before, *::after {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        :root {
+            --bg:          #0d0d14;
+            --surface:     #13131f;
+            --surface-2:   #1a1a2e;
+            --border:      rgba(255,255,255,0.07);
+            --border-hover:rgba(255,255,255,0.13);
+            --text:        #e8e8f0;
+            --text-muted:  #6b6b8a;
+            --text-dim:    #9090b0;
+            --accent:      #7c5cbf;
+            --accent-glow: rgba(124,92,191,0.25);
+            --accent-2:    #4f8ef7;
+            --urgent:      #f04e4e;
+            --success:     #3ecf8e;
+            --warning:     #f5a623;
+            --radius:      10px;
+            --sidebar-w:   220px;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            overflow: hidden;
         }
 
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        /* ─── Layout ─────────────────────────────────── */
+        .app {
+            display: flex;
+            height: 100vh;
         }
 
-        h1 {
-            color: #667eea;
-            font-size: 2.5em;
-            margin-bottom: 10px;
+        /* ─── Sidebar ────────────────────────────────── */
+        .sidebar {
+            width: var(--sidebar-w);
+            min-width: var(--sidebar-w);
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            overflow: hidden;
         }
 
-        .subtitle {
-            color: #666;
-            font-size: 1.1em;
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 22px 20px 18px;
+            border-bottom: 1px solid var(--border);
         }
 
-        .stats-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
+        .sidebar-logo-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
         }
 
-        .stat-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
+        .sidebar-logo-text {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.2px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 10px;
+            overflow-y: auto;
+        }
+
+        .sidebar-nav::-webkit-scrollbar { width: 0; }
+
+        .nav-section-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+            padding: 12px 10px 6px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            color: var(--text-dim);
+            font-size: 13.5px;
+            font-weight: 500;
+            transition: background 0.15s, color 0.15s;
+            position: relative;
+            user-select: none;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .nav-item:hover {
+            background: rgba(255,255,255,0.05);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: var(--accent-glow);
+            color: #c4a8ff;
+        }
+
+        .nav-item .nav-icon {
+            font-size: 15px;
+            width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .nav-badge {
+            margin-left: auto;
+            background: var(--accent);
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 7px;
             border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            min-width: 20px;
             text-align: center;
         }
 
-        .stat-value {
-            font-size: 2.5em;
-            font-weight: bold;
-            color: #667eea;
-            margin: 10px 0;
+        .nav-badge.urgent { background: var(--urgent); }
+
+        .sidebar-footer {
+            padding: 14px 14px 18px;
+            border-top: 1px solid var(--border);
+            position: relative;
         }
 
-        .stat-label {
-            color: #666;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .controls {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        .user-pill {
             display: flex;
+            align-items: center;
             gap: 10px;
-            flex-wrap: wrap;
+            padding: 8px 10px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .user-pill:hover { background: rgba(255,255,255,0.05); }
+        .user-pill.open  { background: rgba(255,255,255,0.07); }
+
+        .user-menu {
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 10px;
+            right: 10px;
+            background: var(--surface-2);
+            border: 1px solid var(--border-hover);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            display: none;
+            z-index: 100;
+        }
+        .user-menu.show { display: block; }
+
+        .user-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 10px 14px;
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 13px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.12s, color 0.12s;
+        }
+        .user-menu-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        .user-menu-item.danger { color: #f47a7a; }
+        .user-menu-item.danger:hover { background: rgba(240,78,78,0.1); color: #f47a7a; }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .user-info { overflow: hidden; }
+        .user-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-email { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* ─── Main ───────────────────────────────────── */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 28px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+            flex-shrink: 0;
+        }
+
+        .topbar-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .topbar-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 1px;
+        }
+
+        .topbar-actions {
+            display: flex;
+            gap: 8px;
             align-items: center;
         }
 
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 1em;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 28px;
         }
+
+        .content::-webkit-scrollbar { width: 6px; }
+        .content::-webkit-scrollbar-track { background: transparent; }
+        .content::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 3px; }
+
+        /* ─── Buttons ─────────────────────────────────── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            color: var(--text);
+            background: var(--surface-2);
+            white-space: nowrap;
+        }
+
+        .btn:hover { background: rgba(255,255,255,0.08); border-color: var(--border-hover); }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--accent);
+            border-color: var(--accent);
             color: white;
         }
+        .btn-primary:hover { background: #9070d8; border-color: #9070d8; }
 
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        .btn-success {
+            background: rgba(62,207,142,0.12);
+            border-color: rgba(62,207,142,0.25);
+            color: var(--success);
         }
-
-        .btn-secondary {
-            background: #48bb78;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #38a169;
-            transform: translateY(-2px);
-        }
+        .btn-success:hover { background: rgba(62,207,142,0.2); }
 
         .btn-danger {
-            background: #f56565;
-            color: white;
+            background: rgba(240,78,78,0.1);
+            border-color: rgba(240,78,78,0.2);
+            color: #f47a7a;
+        }
+        .btn-danger:hover { background: rgba(240,78,78,0.2); }
+
+        /* ─── Stats cards ─────────────────────────────── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 24px;
         }
 
-        .btn-danger:hover {
-            background: #e53e3e;
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            transition: border-color 0.2s;
         }
 
-        .filter-group {
+        .stat-card:hover { border-color: var(--border-hover); }
+
+        .stat-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 2.2em;
+            font-weight: 800;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .stat-icon {
+            font-size: 18px;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        /* ─── Toolbar ─────────────────────────────────── */
+        .toolbar {
             display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
             align-items: center;
-            margin-left: auto;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
         }
 
-        select, input {
-            padding: 10px 15px;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            font-size: 1em;
+        .toolbar-left { display: flex; gap: 8px; flex-wrap: wrap; }
+        .toolbar-right { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+
+        .input-select, .input-search {
+            padding: 8px 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-size: 13px;
             outline: none;
-            transition: border-color 0.3s;
+            transition: border-color 0.15s;
         }
 
-        select:focus, input:focus {
-            border-color: #667eea;
+        .input-select:focus, .input-search:focus {
+            border-color: var(--accent);
         }
 
-        .email-list {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 10px;
+        .input-select option { background: #1a1a2e; }
+        .input-search { width: 220px; }
+        .input-search::placeholder { color: var(--text-muted); }
+
+        /* ─── Email list ──────────────────────────────── */
+        .email-list-wrap {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
             overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
         }
 
         .email-item {
-            padding: 20px;
-            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
             cursor: pointer;
-            transition: background 0.2s;
+            transition: background 0.12s;
+            animation: fadeIn 0.25s ease-out backwards;
         }
 
-        .email-item:hover {
-            background: #f7fafc;
-        }
+        .email-item:last-child { border-bottom: none; }
+        .email-item:hover { background: rgba(255,255,255,0.03); }
 
         .email-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
+            align-items: baseline;
+            margin-bottom: 4px;
         }
 
         .email-sender {
             font-weight: 600;
-            color: #2d3748;
-            font-size: 1.1em;
+            color: var(--text);
+            font-size: 13.5px;
         }
 
         .email-time {
-            color: #a0aec0;
-            font-size: 0.9em;
+            font-size: 11.5px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+            margin-left: 12px;
         }
 
         .email-subject {
-            font-size: 1.1em;
-            color: #4a5568;
-            margin-bottom: 8px;
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 6px;
             font-weight: 500;
         }
 
         .email-preview {
-            color: #718096;
-            font-size: 0.95em;
+            font-size: 12.5px;
+            color: var(--text-muted);
             line-height: 1.5;
-            max-height: 60px;
+            white-space: nowrap;
             overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .email-badges {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             margin-top: 10px;
             flex-wrap: wrap;
         }
 
+        /* ─── Badges ──────────────────────────────────── */
         .badge {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85em;
-            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 6px;
+            font-size: 10.5px;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.6px;
         }
 
-        .badge-urgent { background: #fed7d7; color: #c53030; }
-        .badge-work { background: #bee3f8; color: #2c5282; }
-        .badge-personal { background: #c6f6d5; color: #276749; }
-        .badge-newsletter { background: #feebc8; color: #c05621; }
-        .badge-promotional { background: #fbb6ce; color: #97266d; }
-        .badge-spam { background: #e2e8f0; color: #4a5568; }
-        .badge-social { background: #e9d8fd; color: #6b46c1; }
+        .badge-urgent     { background: rgba(240,78,78,0.15);   color: #f47a7a; }
+        .badge-work       { background: rgba(79,142,247,0.15);  color: #7eb1fa; }
+        .badge-personal   { background: rgba(62,207,142,0.15);  color: #5ddbaa; }
+        .badge-newsletter { background: rgba(245,166,35,0.15);  color: #f7be6a; }
+        .badge-promotional{ background: rgba(213,63,140,0.15);  color: #e87fc0; }
+        .badge-spam       { background: rgba(107,107,138,0.2);  color: #9090b0; }
+        .badge-social     { background: rgba(124,92,191,0.2);   color: #c4a8ff; }
+        .badge-uncategorized { background: rgba(107,107,138,0.15); color: #8888aa; }
 
-        .badge-critical { background: #fc8181; color: #742a2a; }
-        .badge-high { background: #f6ad55; color: #7c2d12; }
-        .badge-medium { background: #68d391; color: #22543d; }
-        .badge-low { background: #90cdf4; color: #1a365d; }
-        .badge-minimal { background: #cbd5e0; color: #2d3748; }
+        .badge-critical   { background: rgba(240,78,78,0.15);   color: #f47a7a; }
+        .badge-high       { background: rgba(245,166,35,0.15);  color: #f7be6a; }
+        .badge-medium     { background: rgba(79,142,247,0.15);  color: #7eb1fa; }
+        .badge-low        { background: rgba(62,207,142,0.15);  color: #5ddbaa; }
+        .badge-minimal    { background: rgba(107,107,138,0.15); color: #8888aa; }
+        .badge-unassigned { background: rgba(107,107,138,0.12); color: #7070a0; }
 
-        .loading {
+        /* ─── Empty / loading states ──────────────────── */
+        /* ── Fetch progress bar ──────────────────── */
+        .fetch-progress {
+            padding: 48px 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+        }
+        .fetch-progress-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            letter-spacing: 0.03em;
+        }
+        .fetch-progress-track {
+            width: 100%;
+            max-width: 420px;
+            height: 5px;
+            background: var(--border);
+            border-radius: 99px;
+            overflow: hidden;
+        }
+        .fetch-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            border-radius: 99px;
+            transition: width 0.25s ease;
+        }
+
+        .empty-state, .loading {
             text-align: center;
-            padding: 60px;
-            color: white;
-            font-size: 1.3em;
+            padding: 60px 20px;
+            color: var(--text-muted);
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 80px 20px;
-            color: #718096;
+        .empty-state h2 { font-size: 16px; color: var(--text-dim); margin-bottom: 6px; }
+        .empty-state p  { font-size: 13px; }
+
+        /* ─── Pagination ──────────────────────────────── */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            padding: 16px;
+            border-top: 1px solid var(--border);
         }
 
-        .empty-state h2 {
-            font-size: 2em;
-            margin-bottom: 15px;
-            color: #4a5568;
+        .page-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            color: var(--text-dim);
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 12.5px;
+            font-weight: 600;
+            transition: all 0.15s;
         }
 
+        .page-btn:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+        .page-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+        /* ─── Modal ───────────────────────────────────── */
         .modal {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(4px);
             z-index: 1000;
             padding: 20px;
             overflow-y: auto;
         }
 
         .modal-content {
-            background: white;
-            max-width: 900px;
-            margin: 50px auto;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            color: var(--text);
+            max-width: 860px;
+            margin: 40px auto;
+            padding: 36px;
+            position: relative;
+            box-shadow: 0 32px 64px rgba(0,0,0,0.6);
         }
 
         .modal-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e2e8f0;
+            align-items: flex-start;
+            margin-bottom: 24px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--border);
         }
+
+        .modal-header h2 { font-size: 17px; font-weight: 700; color: var(--text); }
 
         .modal-close {
-            font-size: 2em;
+            font-size: 22px;
             cursor: pointer;
-            color: #a0aec0;
-            border: none;
+            color: var(--text-muted);
             background: none;
-            padding: 0;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            border: none;
+            line-height: 1;
+            transition: color 0.15s;
         }
-
-        .modal-close:hover {
-            color: #667eea;
-        }
+        .modal-close:hover { color: var(--text); }
 
         .email-detail-body {
-            line-height: 1.6;
-            color: #4a5568;
+            line-height: 1.8;
+            color: var(--text-dim);
             margin-top: 20px;
             padding: 20px;
-            background: #f7fafc;
-            border-radius: 8px;
+            background: rgba(0,0,0,0.2);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
         }
 
-        .pagination {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 20px;
-            padding: 20px;
-        }
-
-        .page-btn {
-            padding: 8px 16px;
-            border: 2px solid #667eea;
-            background: white;
-            color: #667eea;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-        }
-
-        .page-btn:hover {
-            background: #667eea;
-            color: white;
-        }
-
-        .page-btn.active {
-            background: #667eea;
-            color: white;
-        }
-
+        /* ─── Animations ──────────────────────────────── */
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
-        .email-item {
-            animation: fadeIn 0.3s ease-in-out;
+        /* ─── Responsive ──────────────────────────────── */
+        @media (max-width: 900px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>📧 Email Triage Assistant</h1>
-            <p class="subtitle">AI-Powered Email Management Dashboard</p>
+<div class="app">
+
+    <!-- ── Sidebar ─────────────────────────────────── -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">📧</div>
+            <span class="sidebar-logo-text">Triage AI</span>
         </div>
 
-        <!-- Statistics -->
-        <div class="stats-container">
-            <div class="stat-card">
-                <div class="stat-label">Total Emails</div>
-                <div class="stat-value" id="total-emails">0</div>
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Mailbox</div>
+
+            <button class="nav-item active" data-cat="" onclick="filterByCategory('')">
+                <span class="nav-icon">📥</span>
+                All Emails
+                <span class="nav-badge" id="nav-total">0</span>
+            </button>
+
+            <button class="nav-item" data-cat="urgent" onclick="filterByCategory('urgent')">
+                <span class="nav-icon">🔴</span>
+                Urgent
+                <span class="nav-badge urgent" id="nav-urgent">0</span>
+            </button>
+
+            <button class="nav-item" data-cat="work" onclick="filterByCategory('work')">
+                <span class="nav-icon">💼</span>
+                Work
+                <span class="nav-badge" id="nav-work">0</span>
+            </button>
+
+            <button class="nav-item" data-cat="personal" onclick="filterByCategory('personal')">
+                <span class="nav-icon">👤</span>
+                Personal
+                <span class="nav-badge" id="nav-personal">0</span>
+            </button>
+
+            <button class="nav-item" data-cat="social" onclick="filterByCategory('social')">
+                <span class="nav-icon">💬</span>
+                Social
+                <span class="nav-badge" id="nav-social">0</span>
+            </button>
+
+            <button class="nav-item" data-cat="newsletter" onclick="filterByCategory('newsletter')">
+                <span class="nav-icon">📰</span>
+                Newsletter
+                <span class="nav-badge" id="nav-newsletter">0</span>
+            </button>
+
+            <button class="nav-item" data-cat="promotional" onclick="filterByCategory('promotional')">
+                <span class="nav-icon">🏷️</span>
+                Promotions
+                <span class="nav-badge" id="nav-promotional">0</span>
+            </button>
+
+            <button class="nav-item" data-cat="spam" onclick="filterByCategory('spam')">
+                <span class="nav-icon">🚫</span>
+                Spam
+                <span class="nav-badge" id="nav-spam">0</span>
+            </button>
+
+            <div class="nav-section-label" style="margin-top:8px;">Actions</div>
+
+            <button class="nav-item" onclick="processInbox()">
+                <span class="nav-icon">⚡</span>
+                Process Inbox
+            </button>
+
+            <button class="nav-item" onclick="generateEmails()">
+                <span class="nav-icon">➕</span>
+                Generate Data
+            </button>
+
+            <button class="nav-item" onclick="clearData()">
+                <span class="nav-icon">🗑️</span>
+                Clear All
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-menu" id="user-menu">
+                <button class="user-menu-item danger" onclick="logout()">
+                    🚪 Log out
+                </button>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Processed</div>
-                <div class="stat-value" id="processed-emails">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Threads</div>
-                <div class="stat-value" id="total-threads">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Time Saved</div>
-                <div class="stat-value" id="time-saved">0h</div>
+            <div class="user-pill" id="user-pill" onclick="toggleUserMenu()">
+                <div class="user-avatar" id="user-avatar">?</div>
+                <div class="user-info">
+                    <div class="user-name" id="user-name">Loading...</div>
+                    <div class="user-email" id="user-email-display">—</div>
+                </div>
+                <span style="margin-left:auto;font-size:11px;color:var(--text-muted);flex-shrink:0;">⌃</span>
             </div>
         </div>
+    </aside>
 
-        <!-- Controls -->
-        <div class="controls">
-            <button class="btn btn-primary" onclick="generateEmails()">
-                ➕ Generate 50 Emails
-            </button>
-            <button class="btn btn-secondary" onclick="processInbox()">
-                ⚡ Process Inbox
-            </button>
-            <button class="btn btn-danger" onclick="clearData()">
-                🗑️ Clear All
-            </button>
-            
-            <div class="filter-group">
-                <select id="category-filter" onchange="loadEmails()">
-                    <option value="">All Categories</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="work">Work</option>
-                    <option value="personal">Personal</option>
-                    <option value="newsletter">Newsletter</option>
-                    <option value="promotional">Promotional</option>
-                    <option value="spam">Spam</option>
-                    <option value="social">Social</option>
-                </select>
-                
-                <select id="priority-filter" onchange="loadEmails()">
+    <!-- ── Main ────────────────────────────────────── -->
+    <div class="main">
+        <div class="topbar">
+            <div>
+                <div class="topbar-title" id="topbar-title">Inbox</div>
+                <div class="topbar-sub" id="topbar-sub">Loading your emails…</div>
+            </div>
+            <div class="topbar-actions">
+                <select class="input-select" id="priority-filter" onchange="loadEmails()">
                     <option value="">All Priorities</option>
                     <option value="critical">Critical</option>
                     <option value="high">High</option>
@@ -401,38 +711,74 @@
                     <option value="low">Low</option>
                     <option value="minimal">Minimal</option>
                 </select>
-
-                <input type="search" id="search-box" placeholder="Search emails..." 
-                       oninput="searchEmails()" style="width: 250px;">
+                <input class="input-search" type="search" id="search-box"
+                       placeholder="Search emails…" oninput="searchEmails()">
             </div>
         </div>
 
-        <!-- Email List -->
-        <div class="email-list" id="email-list">
-            <div class="loading">Loading emails...</div>
+        <div class="content">
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-icon">📧</span>
+                    <div class="stat-label">Total Emails</div>
+                    <div class="stat-value" id="total-emails">—</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">⚡</span>
+                    <div class="stat-label">Processed</div>
+                    <div class="stat-value" id="processed-emails">—</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">🗂️</span>
+                    <div class="stat-label">Threads</div>
+                    <div class="stat-value" id="total-threads">—</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">⏱️</span>
+                    <div class="stat-label">Time Saved</div>
+                    <div class="stat-value" id="time-saved">—</div>
+                </div>
+            </div>
+
+            <!-- Email list -->
+            <div class="email-list-wrap" id="email-list">
+                <div class="loading">Loading emails…</div>
+            </div>
         </div>
     </div>
+</div>
 
-    <!-- Email Detail Modal -->
-    <div class="modal" id="email-modal" onclick="closeModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h2 id="modal-subject">Email Subject</h2>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
-            </div>
-            <div id="modal-body">
-                <!-- Email details will be loaded here -->
-            </div>
+<!-- ── Modal ──────────────────────────────────────── -->
+<div class="modal" id="email-modal" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 id="modal-subject">Email Subject</h2>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
         </div>
+        <div id="modal-body"></div>
     </div>
+</div>
 
-    <script>
+<script>
+
         let allEmails = [];
         let currentPage = 1;
         const emailsPerPage = 20;
+        let currentCategory = '';
+
+        // Return the current user's email for scoping API calls
+        function getUserEmail() {
+            return localStorage.getItem('userEmail') || '';
+        }
 
         // Load initial data
         async function init() {
+            // Fix any emails incorrectly assigned to this account (wrong owner from old bug)
+            const ue = getUserEmail();
+            if (ue) {
+                await fetch(`http://localhost:8000/api/repair-owners?user_email=${encodeURIComponent(ue)}`, { method: 'POST' });
+            }
             await loadStats();
             await loadEmails();
         }
@@ -440,9 +786,10 @@
         // Load statistics
         async function loadStats() {
             try {
+                const ue = encodeURIComponent(getUserEmail());
                 const [statsRes, metricsRes] = await Promise.all([
-                    fetch('http://localhost:8000/api/stats'),
-                    fetch('http://localhost:8000/api/metrics')
+                    fetch(`http://localhost:8000/api/stats?user_email=${ue}`),
+                    fetch(`http://localhost:8000/api/metrics?user_email=${ue}`)
                 ]);
                 
                 const stats = await statsRes.json();
@@ -457,26 +804,99 @@
             }
         }
 
-        // Load emails
+        // Filter by sidebar category
+        function filterByCategory(cat) {
+            currentCategory = cat;
+            // Update active nav item via data-cat attribute (no fragile index math)
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            const active = document.querySelector(`.nav-item[data-cat="${cat}"]`);
+            if (active) active.classList.add('active');
+            // Update topbar title
+            const titles = { '': 'All Emails', urgent: 'Urgent', work: 'Work',
+                             personal: 'Personal', social: 'Social', newsletter: 'Newsletter',
+                             promotional: 'Promotions', spam: 'Spam' };
+            document.getElementById('topbar-title').textContent = titles[cat] || cat;
+            currentPage = 1;
+            loadEmails();
+        }
+
+// Load emails with a live progress bar
         async function loadEmails() {
-            const category = document.getElementById('category-filter').value;
+            const category = currentCategory;
             const priority = document.getElementById('priority-filter').value;
-            
-            let url = 'http://localhost:8000/api/emails?limit=500';
-            if (category) url += `&category=${category}`;
-            if (priority) url += `&priority=${priority}`;
-            
+            const ue = encodeURIComponent(getUserEmail());
+            const BATCH = 25;
+
+            // Build base query params (no limit/offset yet)
+            let baseParams = `user_email=${ue}`;
+            if (category) baseParams += `&category=${category}`;
+            if (priority)  baseParams += `&priority=${priority}`;
+
+            const emailList = document.getElementById('email-list');
+
+            // ── Step 1: get total count ──────────────────────────────
+            let total = 0;
             try {
-                const response = await fetch(url);
-                const data = await response.json();
-                allEmails = data.emails || [];
+                const countRes = await fetch(`http://localhost:8000/api/emails?limit=1&offset=0&${baseParams}`);
+                const countData = await countRes.json();
+                total = countData.total || 0;
+            } catch (e) {
+                emailList.innerHTML = '<div class="empty-state"><h2>Error loading emails</h2></div>';
+                return;
+            }
+
+            if (total === 0) {
+                allEmails = [];
                 currentPage = 1;
+                updateNavBadges();
                 displayEmails();
+                document.getElementById('topbar-sub').textContent = '0 emails';
+                return;
+            }
+
+            // ── Step 2: show progress bar ────────────────────────────
+            emailList.innerHTML = `
+                <div class="fetch-progress" id="fetch-progress-wrap">
+                    <div class="fetch-progress-label" id="fetch-progress-label">Fetching emails…</div>
+                    <div class="fetch-progress-track">
+                        <div class="fetch-progress-fill" id="fetch-progress-fill"></div>
+                    </div>
+                </div>`;
+
+            const labelEl = document.getElementById('fetch-progress-label');
+            const fillEl  = document.getElementById('fetch-progress-fill');
+
+            // ── Step 3: batch-fetch ──────────────────────────────────
+            allEmails = [];
+            let fetched = 0;
+            const pages = Math.ceil(total / BATCH);
+
+            try {
+                for (let p = 0; p < pages; p++) {
+                    const offset = p * BATCH;
+                    const url = `http://localhost:8000/api/emails?limit=${BATCH}&offset=${offset}&${baseParams}`;
+                    const res  = await fetch(url);
+                    const data = await res.json();
+                    const batch = data.emails || [];
+                    allEmails = allEmails.concat(batch);
+                    fetched = allEmails.length;
+
+                    // Update bar
+                    const pct = Math.round((fetched / total) * 100);
+                    fillEl.style.width  = pct + '%';
+                    labelEl.textContent = `Fetched ${fetched} / ${total} emails`;
+                }
             } catch (error) {
                 console.error('Error loading emails:', error);
-                document.getElementById('email-list').innerHTML = 
-                    '<div class="empty-state"><h2>Error loading emails</h2></div>';
+                emailList.innerHTML = '<div class="empty-state"><h2>Error loading emails</h2></div>';
+                return;
             }
+
+            // ── Step 4: render ───────────────────────────────────────
+            currentPage = 1;
+            updateNavBadges();
+            displayEmails();
+            document.getElementById('topbar-sub').textContent = `${allEmails.length} email${allEmails.length !== 1 ? 's' : ''}`;
         }
 
         // Display emails
@@ -487,7 +907,7 @@
                 emailList.innerHTML = `
                     <div class="empty-state">
                         <h2>📭 No Emails Yet</h2>
-                        <p>Click "Generate 50 Emails" to create some test data</p>
+                        <p>Click "Generate Data" in the sidebar to create some test data, then "Process Inbox" to categorize them.</p>
                     </div>
                 `;
                 return;
@@ -500,21 +920,23 @@
             let html = '';
             pageEmails.forEach(email => {
                 const date = new Date(email.received_at).toLocaleString();
-                const categoryClass = `badge-${email.category}`;
-                const priorityClass = `badge-${email.priority_level.toLowerCase()}`;
+                const category = email.category || 'uncategorized';
+                const priority = email.priority_level || 'unassigned';
+                const categoryClass = `badge-${category}`;
+                const priorityClass = `badge-${priority.toLowerCase()}`;
                 
                 html += `
                     <div class="email-item" onclick="showEmailDetail('${email.id}')">
                         <div class="email-header">
-                            <div class="email-sender">${email.sender.name || email.sender.email}</div>
+                            <div class="email-sender">${email.sender?.name || email.sender?.email || 'Unknown'}</div>
                             <div class="email-time">${date}</div>
                         </div>
-                        <div class="email-subject">${email.subject}</div>
-                        <div class="email-preview">${email.body_text.substring(0, 200)}...</div>
+                        <div class="email-subject">${email.subject || '(No Subject)'}</div>
+                        <div class="email-preview">${(email.body_text || '').substring(0, 200)}...</div>
                         <div class="email-badges">
-                            <span class="badge ${categoryClass}">${email.category}</span>
-                            <span class="badge ${priorityClass}">${email.priority_level}</span>
-                            ${email.priority_score ? `<span class="badge" style="background: #edf2f7; color: #2d3748;">Score: ${email.priority_score}</span>` : ''}
+                            <span class="badge ${categoryClass}">${category}</span>
+                            <span class="badge ${priorityClass}">${priority}</span>
+                            ${email.priority_score ? `<span class="badge" style="background:rgba(255,255,255,0.07);color:var(--text-dim)">Score: ${email.priority_score}</span>` : ''}
                         </div>
                     </div>
                 `;
@@ -556,10 +978,10 @@
             }
 
             const filtered = allEmails.filter(email => 
-                email.subject.toLowerCase().includes(searchTerm) ||
-                email.body_text.toLowerCase().includes(searchTerm) ||
-                email.sender.email.toLowerCase().includes(searchTerm) ||
-                email.sender.name.toLowerCase().includes(searchTerm)
+                (email.subject || '').toLowerCase().includes(searchTerm) ||
+                (email.body_text || '').toLowerCase().includes(searchTerm) ||
+                (email.sender?.email || '').toLowerCase().includes(searchTerm) ||
+                (email.sender?.name || '').toLowerCase().includes(searchTerm)
             );
 
             allEmails = filtered;
@@ -567,26 +989,32 @@
             displayEmails();
         }
 
+
         // Show email detail
         async function showEmailDetail(emailId) {
             const email = allEmails.find(e => e.id === emailId);
             if (!email) return;
 
-            document.getElementById('modal-subject').textContent = email.subject;
+            document.getElementById('modal-subject').textContent = email.subject || '(No Subject)';
             
-            const categoryClass = `badge-${email.category}`;
-            const priorityClass = `badge-${email.priority_level.toLowerCase()}`;
+            const category = email.category || 'uncategorized';
+            const priority = email.priority_level || 'unassigned';
+            const categoryClass = `badge-${category}`;
+            const priorityClass = `badge-${priority.toLowerCase()}`;
             
-            document.getElementById('modal-body').innerHTML = `
-                <div style="margin-bottom: 20px;">
-                    <strong>From:</strong> ${email.sender.name} &lt;${email.sender.email}&gt;<br>
+            // Create header content
+            const headerHtml = `
+                <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <strong>From:</strong> ${email.sender?.name || ''} &lt;${email.sender?.email || ''}&gt;<br>
                     <strong>Date:</strong> ${new Date(email.received_at).toLocaleString()}<br>
-                    <strong>Category:</strong> <span class="badge ${categoryClass}">${email.category}</span>
-                    <strong>Priority:</strong> <span class="badge ${priorityClass}">${email.priority_level}</span> (${email.priority_score || 'N/A'})
+                    <strong>Category:</strong> <span class="badge ${categoryClass}">${category}</span>
+                    <strong>Priority:</strong> <span class="badge ${priorityClass}">${priority}</span> (${email.priority_score || 'N/A'})
                 </div>
-                <div class="email-detail-body">${email.body_text.replace(/\n/g, '<br>')}</div>
+            `;
+            
+            const footerHtml = `
                 ${email.key_entities && email.key_entities.length > 0 ? `
-                    <div style="margin-top: 20px;">
+                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
                         <strong>Key Entities:</strong> ${email.key_entities.join(', ')}
                     </div>
                 ` : ''}
@@ -596,6 +1024,46 @@
                     </div>
                 ` : ''}
             `;
+            
+            // Determine body content
+            const useHtml = email.body_html && email.body_html.trim().length > 0;
+            const modalBody = document.getElementById('modal-body');
+
+            if (useHtml) {
+                // If HTML content exists, use an iframe
+                modalBody.innerHTML = headerHtml + 
+                    `<div id="email-content-frame" style="width: 100%; height: 60vh; background: white; border-radius: 8px; overflow: hidden;"></div>` + 
+                    footerHtml;
+                
+                const container = document.getElementById('email-content-frame');
+                const iframe = document.createElement('iframe');
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.border = 'none';
+                
+                // Set HTML content
+                let html = email.body_html;
+                // Add base target to ensure links open in new tab
+                if (!html.includes('<base')) {
+                    html = html.replace('<head>', '<head><base target="_blank">');
+                    if (!html.includes('<head>')) {
+                        html = '<head><base target="_blank"></head>' + html;
+                    }
+                }
+                
+                container.appendChild(iframe);
+                const doc = iframe.contentWindow.document;
+                doc.open();
+                doc.write(html);
+                doc.close();
+            } else {
+                // If text only, linkify urls
+                const linkifiedText = (email.body_text || '').replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #667eea; text-decoration: underline;">$1</a>');
+                
+                modalBody.innerHTML = headerHtml + 
+                    `<div class="email-detail-body" style="height: 60vh; overflow-y: auto; white-space: pre-wrap; word-break: break-word;">${linkifiedText || '(No content)'}</div>` + 
+                    footerHtml;
+            }
             
             document.getElementById('email-modal').style.display = 'block';
         }
@@ -610,7 +1078,8 @@
         // Generate emails
         async function generateEmails() {
             try {
-                const response = await fetch('http://localhost:8000/api/generate-mock-data?count=50', {
+                const ue = encodeURIComponent(getUserEmail());
+                const response = await fetch(`http://localhost:8000/api/generate-mock-data?count=50&user_email=${ue}`, {
                     method: 'POST'
                 });
                 const data = await response.json();
@@ -625,7 +1094,8 @@
         // Process inbox
         async function processInbox() {
             try {
-                const response = await fetch('http://localhost:8000/api/process-inbox', {
+                const ue = encodeURIComponent(getUserEmail());
+                const response = await fetch(`http://localhost:8000/api/process-inbox?user_email=${ue}`, {
                     method: 'POST'
                 });
                 const data = await response.json();
@@ -642,17 +1112,86 @@
             if (!confirm('Are you sure you want to clear all emails and threads?')) return;
             
             try {
-                await fetch('http://localhost:8000/api/reset', { method: 'POST' });
+                const ue = encodeURIComponent(getUserEmail());
+                await fetch(`http://localhost:8000/api/reset?user_email=${ue}`, { method: 'POST' });
                 alert('All data cleared!');
                 allEmails = [];
                 await loadStats();
+                updateNavBadges();
                 displayEmails();
             } catch (error) {
                 alert('Error clearing data: ' + error.message);
             }
         }
 
+        // Update sidebar nav badge counts
+        function updateNavBadges() {
+            const counts = {};
+            allEmails.forEach(e => {
+                const cat = (e.category || 'uncategorized').toLowerCase();
+                counts[cat] = (counts[cat] || 0) + 1;
+            });
+            const set = (id, key) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = counts[key] || 0;
+            };
+            const navTotal = document.getElementById('nav-total');
+            if (navTotal) navTotal.textContent = allEmails.length;
+            set('nav-urgent', 'urgent');
+            set('nav-work', 'work');
+            set('nav-personal', 'personal');
+            set('nav-social', 'social');
+            set('nav-newsletter', 'newsletter');
+            set('nav-promotional', 'promotional');
+            set('nav-spam', 'spam');
+        }
+
+        // Toggle user menu
+        function toggleUserMenu() {
+            const menu = document.getElementById('user-menu');
+            const pill = document.getElementById('user-pill');
+            const isOpen = menu.classList.toggle('show');
+            pill.classList.toggle('open', isOpen);
+        }
+
+        // Close menu when clicking outside
+        document.addEventListener('click', function(e) {
+            const pill = document.getElementById('user-pill');
+            const menu = document.getElementById('user-menu');
+            if (!pill.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.remove('show');
+                pill.classList.remove('open');
+            }
+        });
+
+        // Logout
+        function logout() {
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('isConnected');
+            localStorage.removeItem('provider');
+            window.location.href = '/';
+        }
+
+        // Populate user area with stored session info
+        function populateUserInfo() {
+            const email = sessionStorage.getItem('user_email') || localStorage.getItem('user_email')
+                       || sessionStorage.getItem('userEmail') || localStorage.getItem('userEmail') || '';
+            // Derive first name: take the local part before @, split on dots/underscores/numbers, capitalize first segment
+            const localPart = email.split('@')[0] || 'User';
+            const firstName = localPart.split(/[\.\-\_\d]/)[0];
+            const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+            const initial = displayName.charAt(0) || 'U';
+
+            const nameEl   = document.getElementById('user-name');
+            const emailEl  = document.getElementById('user-email-display');
+            const avatarEl = document.getElementById('user-avatar');
+            if (nameEl)   nameEl.textContent   = displayName;
+            if (emailEl)  emailEl.textContent  = email;
+            if (avatarEl) avatarEl.textContent = initial;
+        }
+
         // Initialize on page load
+        populateUserInfo();
         init();
     </script>
 </body>

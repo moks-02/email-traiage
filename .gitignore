@@ -13,9 +13,12 @@ venv/
 env/
 ENV/
 
-# API configuration (contains secrets)
+# API configuration and OAuth secrets (contains credentials — never commit these)
 config.py
 .env
+credentials.json
+token.json
+*_token.json
 
 # IDE
 .vscode/
