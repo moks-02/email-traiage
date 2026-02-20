@@ -16,6 +16,8 @@ ENV/
 # API configuration and OAuth secrets (contains credentials — never commit these)
 config.py
 .env
+.env.local
+.env.example
 credentials.json
 token.json
 *_token.json
