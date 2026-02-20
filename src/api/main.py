@@ -614,35 +614,50 @@ async def gmail_auth_disconnect():
 # ─────────────────────────────────────────────────────────────
 
 @app.post("/api/ingest/gmail")
-async def ingest_gmail(max_emails: int = 50, unread_only: bool = False):
+async def ingest_gmail(max_emails: int = 50, unread_only: bool = False, force: bool = False):
     """
     Ingest emails from Gmail using the stored OAuth token.
-    The user must have completed Gmail OAuth first (/api/auth/gmail).
+    If emails already exist in the DB and force=False (default), the Gmail API
+    call is skipped and the existing count is returned immediately — so re-logging
+    in never causes a redundant full re-fetch.
+    Pass force=true to always pull fresh mail from Gmail (used by Sync button).
     """
     if not GmailIngestor:
         raise HTTPException(
             status_code=503,
-            detail="Gmail integration not available. Install: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client"
+            detail="Gmail integration not available."
         )
 
     token_doc = await db.get_tokens_collection().find_one({"_id": "gmail_token"})
     if not token_doc:
-        raise HTTPException(
-            status_code=401,
-            detail="Gmail not connected. Visit /api/auth/gmail to connect your account."
-        )
+        raise HTTPException(status_code=401, detail="Gmail not connected.")
+
+    gmail_owner   = token_doc.get('user_email', '')
+    owner_filter  = {"owner_email": gmail_owner} if gmail_owner else {}
+    existing_count = await db.get_emails_collection().count_documents(owner_filter)
+
+    # ── Skip re-fetch if emails are already in the DB ────────────────────────
+    if existing_count > 0 and not force:
+        meta = await db.get_tokens_collection().find_one({"_id": f"sync_meta_{gmail_owner}"})
+        return {
+            "status":        "skipped",
+            "source":        "gmail",
+            "owner_email":   gmail_owner,
+            "emails_fetched": 0,
+            "total_emails":  existing_count,
+            "last_synced":   meta.get("last_synced") if meta else None,
+            "message":       f"{existing_count} emails already in DB. Use force=true to re-sync."
+        }
 
     try:
-        # Remove MongoDB _id before passing to credential builder
         token_data = {k: v for k, v in token_doc.items() if k != "_id"}
-        ingestor = GmailIngestor.from_stored_token(token_data)
+        ingestor   = GmailIngestor.from_stored_token(token_data)
 
-        if unread_only:
-            new_emails = ingestor.fetch_unread_emails(max_results=max_emails)
-        else:
-            new_emails = ingestor.fetch_emails(max_results=max_emails)
-
-        gmail_owner = token_doc.get('user_email', '')
+        new_emails = (
+            ingestor.fetch_unread_emails(max_results=max_emails)
+            if unread_only else
+            ingestor.fetch_emails(max_results=max_emails)
+        )
 
         if new_emails:
             from pymongo import ReplaceOne
@@ -656,20 +671,39 @@ async def ingest_gmail(max_emails: int = 50, unread_only: bool = False):
             ]
             await db.get_emails_collection().bulk_write(ops)
 
-        owner_filter = {"owner_email": gmail_owner} if gmail_owner else {}
-        total = await db.get_emails_collection().count_documents(owner_filter)
+        total       = await db.get_emails_collection().count_documents(owner_filter)
+        last_synced = datetime.now().isoformat()
+
+        # Store sync metadata in DB so dashboard can show last-synced without re-fetching
+        await db.get_tokens_collection().update_one(
+            {"_id": f"sync_meta_{gmail_owner}"},
+            {"$set": {"last_synced": last_synced, "email_count": total, "owner_email": gmail_owner}},
+            upsert=True
+        )
 
         return {
-            "status": "success",
-            "source": "gmail",
-            "owner_email": gmail_owner,
+            "status":        "success",
+            "source":        "gmail",
+            "owner_email":   gmail_owner,
             "emails_fetched": len(new_emails),
-            "total_emails": total,
-            "message": f"Fetched {len(new_emails)} emails from Gmail"
+            "total_emails":  total,
+            "last_synced":   last_synced,
+            "message":       f"Fetched {len(new_emails)} emails from Gmail"
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gmail ingestion failed: {str(e)}")
+
+
+@app.get("/api/user/sync-status")
+async def get_sync_status(user_email: str):
+    """Return cached sync metadata (last_synced, email_count) for a user — no Gmail API call."""
+    meta        = await db.get_tokens_collection().find_one({"_id": f"sync_meta_{user_email}"})
+    email_count = await db.get_emails_collection().count_documents({"owner_email": user_email})
+    return {
+        "email_count": email_count,
+        "last_synced": meta.get("last_synced") if meta else None,
+    }
 
 
 @app.post("/api/ingest/outlook")

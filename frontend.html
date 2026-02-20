@@ -615,52 +615,50 @@
             <button class="nav-item active" data-cat="" onclick="filterByCategory('')">
                 <span class="nav-icon">📥</span>
                 All Emails
-                <span class="nav-badge" id="nav-total">0</span>
             </button>
 
             <button class="nav-item" data-cat="urgent" onclick="filterByCategory('urgent')">
                 <span class="nav-icon">🔴</span>
                 Urgent
-                <span class="nav-badge urgent" id="nav-urgent">0</span>
             </button>
 
             <button class="nav-item" data-cat="work" onclick="filterByCategory('work')">
                 <span class="nav-icon">💼</span>
                 Work
-                <span class="nav-badge" id="nav-work">0</span>
             </button>
 
             <button class="nav-item" data-cat="personal" onclick="filterByCategory('personal')">
                 <span class="nav-icon">👤</span>
                 Personal
-                <span class="nav-badge" id="nav-personal">0</span>
             </button>
 
             <button class="nav-item" data-cat="social" onclick="filterByCategory('social')">
                 <span class="nav-icon">💬</span>
                 Social
-                <span class="nav-badge" id="nav-social">0</span>
             </button>
 
             <button class="nav-item" data-cat="newsletter" onclick="filterByCategory('newsletter')">
                 <span class="nav-icon">📰</span>
                 Newsletter
-                <span class="nav-badge" id="nav-newsletter">0</span>
             </button>
 
             <button class="nav-item" data-cat="promotional" onclick="filterByCategory('promotional')">
                 <span class="nav-icon">🏷️</span>
                 Promotions
-                <span class="nav-badge" id="nav-promotional">0</span>
             </button>
 
             <button class="nav-item" data-cat="spam" onclick="filterByCategory('spam')">
                 <span class="nav-icon">🚫</span>
                 Spam
-                <span class="nav-badge" id="nav-spam">0</span>
             </button>
 
             <div class="nav-section-label" style="margin-top:8px;">Actions</div>
+
+            <button class="nav-item" onclick="syncMail()" id="sync-btn">
+                <span class="nav-icon">🔄</span>
+                Sync Mail
+            </button>
+            <div id="last-synced-label" style="font-size:0.72rem;color:var(--text-muted);padding:2px 12px 8px 38px;"></div>
 
             <button class="nav-item" onclick="processInbox()">
                 <span class="nav-icon">⚡</span>
@@ -703,7 +701,7 @@
                 <div class="topbar-sub" id="topbar-sub">Loading your emails…</div>
             </div>
             <div class="topbar-actions">
-                <select class="input-select" id="priority-filter" onchange="loadEmails()">
+                <select class="input-select" id="priority-filter" onchange="applyFilters()">
                     <option value="">All Priorities</option>
                     <option value="critical">Critical</option>
                     <option value="high">High</option>
@@ -762,7 +760,8 @@
 
 <script>
 
-        let allEmails = [];
+        let allEmailsCache = [];  // master copy — all emails, never filtered
+        let allEmails = [];         // current view — filtered by category + priority
         let currentPage = 1;
         const emailsPerPage = 20;
         let currentCategory = '';
@@ -774,13 +773,66 @@
 
         // Load initial data
         async function init() {
-            // Fix any emails incorrectly assigned to this account (wrong owner from old bug)
             const ue = getUserEmail();
             if (ue) {
                 await fetch(`http://localhost:8000/api/repair-owners?user_email=${encodeURIComponent(ue)}`, { method: 'POST' });
             }
+            await loadSyncStatus();
             await loadStats();
             await loadEmails();
+        }
+
+        // Pull last-synced timestamp from DB and show it under the Sync button
+        async function loadSyncStatus() {
+            const ue = getUserEmail();
+            if (!ue) return;
+            try {
+                const res  = await fetch(`http://localhost:8000/api/user/sync-status?user_email=${encodeURIComponent(ue)}`);
+                const data = await res.json();
+                renderLastSynced(data.last_synced);
+            } catch (_) {}
+        }
+
+        function renderLastSynced(iso) {
+            const el = document.getElementById('last-synced-label');
+            if (!el) return;
+            if (!iso) { el.textContent = 'Never synced'; return; }
+            const d = new Date(iso);
+            el.textContent = 'Synced ' + d.toLocaleString([], {
+                month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        }
+
+        // Force-pull fresh mail from Gmail, re-classify, reload cache
+        async function syncMail() {
+            const ue  = getUserEmail();
+            const btn = document.getElementById('sync-btn');
+            const lbl = document.getElementById('last-synced-label');
+            if (!ue) { alert('No account connected.'); return; }
+            const provider = localStorage.getItem('provider') || '';
+            if (!provider.includes('gmail')) { alert('Sync is only available for Gmail OAuth accounts.'); return; }
+
+            btn.disabled = true;
+            btn.querySelector('.nav-icon').textContent = '⏳';
+            if (lbl) lbl.textContent = 'Syncing…';
+
+            try {
+                const ingestRes  = await fetch('http://localhost:8000/api/ingest/gmail?max_emails=100&force=true', { method: 'POST' });
+                const ingestData = await ingestRes.json();
+                if (ingestData.status === 'success') {
+                    await fetch(`http://localhost:8000/api/process-inbox?user_email=${encodeURIComponent(ue)}`, { method: 'POST' });
+                }
+                renderLastSynced(ingestData.last_synced || new Date().toISOString());
+                await loadStats();
+                await loadEmails();
+            } catch (e) {
+                if (lbl) lbl.textContent = 'Sync failed';
+                alert('Sync failed: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.querySelector('.nav-icon').textContent = '🔄';
+            }
         }
 
         // Load statistics
@@ -804,50 +856,57 @@
             }
         }
 
-        // Filter by sidebar category
+        // Filter by sidebar category — no API call, just re-filter the cache
         function filterByCategory(cat) {
             currentCategory = cat;
-            // Update active nav item via data-cat attribute (no fragile index math)
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             const active = document.querySelector(`.nav-item[data-cat="${cat}"]`);
             if (active) active.classList.add('active');
-            // Update topbar title
             const titles = { '': 'All Emails', urgent: 'Urgent', work: 'Work',
                              personal: 'Personal', social: 'Social', newsletter: 'Newsletter',
                              promotional: 'Promotions', spam: 'Spam' };
             document.getElementById('topbar-title').textContent = titles[cat] || cat;
             currentPage = 1;
-            loadEmails();
+            applyFilters();
         }
 
-// Load emails with a live progress bar
-        async function loadEmails() {
-            const category = currentCategory;
+        // Client-side filter: slice allEmailsCache by category + priority, then render.
+        // Never touches the network.
+        function applyFilters() {
             const priority = document.getElementById('priority-filter').value;
+            allEmails = allEmailsCache.filter(e => {
+                const catMatch = !currentCategory || (e.category || '').toLowerCase() === currentCategory;
+                const priMatch = !priority      || (e.priority_level || '').toUpperCase() === priority.toUpperCase();
+                return catMatch && priMatch;
+            });
+            currentPage = 1;
+            displayEmails();
+            document.getElementById('topbar-sub').textContent =
+                `${allEmails.length} email${allEmails.length !== 1 ? 's' : ''}`;
+        }
+
+        // Fetch ALL emails once into allEmailsCache with a live progress bar.
+        // Call only on init, after process-inbox, or after clear.
+        async function loadEmails() {
             const ue = encodeURIComponent(getUserEmail());
             const BATCH = 25;
-
-            // Build base query params (no limit/offset yet)
-            let baseParams = `user_email=${ue}`;
-            if (category) baseParams += `&category=${category}`;
-            if (priority)  baseParams += `&priority=${priority}`;
-
-            const emailList = document.getElementById('email-list');
+            const baseParams = `user_email=${ue}`;
+            const emailList  = document.getElementById('email-list');
 
             // ── Step 1: get total count ──────────────────────────────
             let total = 0;
             try {
-                const countRes = await fetch(`http://localhost:8000/api/emails?limit=1&offset=0&${baseParams}`);
-                const countData = await countRes.json();
-                total = countData.total || 0;
+                const res  = await fetch(`http://localhost:8000/api/emails?limit=1&offset=0&${baseParams}`);
+                const data = await res.json();
+                total = data.total || 0;
             } catch (e) {
                 emailList.innerHTML = '<div class="empty-state"><h2>Error loading emails</h2></div>';
                 return;
             }
 
             if (total === 0) {
+                allEmailsCache = [];
                 allEmails = [];
-                currentPage = 1;
                 updateNavBadges();
                 displayEmails();
                 document.getElementById('topbar-sub').textContent = '0 emails';
@@ -866,25 +925,21 @@
             const labelEl = document.getElementById('fetch-progress-label');
             const fillEl  = document.getElementById('fetch-progress-fill');
 
-            // ── Step 3: batch-fetch ──────────────────────────────────
-            allEmails = [];
-            let fetched = 0;
+            // ── Step 3: batch-fetch ALL (no category/priority filter) ─
+            allEmailsCache = [];
             const pages = Math.ceil(total / BATCH);
 
             try {
                 for (let p = 0; p < pages; p++) {
                     const offset = p * BATCH;
-                    const url = `http://localhost:8000/api/emails?limit=${BATCH}&offset=${offset}&${baseParams}`;
+                    const url  = `http://localhost:8000/api/emails?limit=${BATCH}&offset=${offset}&${baseParams}`;
                     const res  = await fetch(url);
                     const data = await res.json();
-                    const batch = data.emails || [];
-                    allEmails = allEmails.concat(batch);
-                    fetched = allEmails.length;
+                    allEmailsCache = allEmailsCache.concat(data.emails || []);
 
-                    // Update bar
-                    const pct = Math.round((fetched / total) * 100);
+                    const pct = Math.round((allEmailsCache.length / total) * 100);
                     fillEl.style.width  = pct + '%';
-                    labelEl.textContent = `Fetched ${fetched} / ${total} emails`;
+                    labelEl.textContent = `Fetched ${allEmailsCache.length} / ${total} emails`;
                 }
             } catch (error) {
                 console.error('Error loading emails:', error);
@@ -892,11 +947,9 @@
                 return;
             }
 
-            // ── Step 4: render ───────────────────────────────────────
-            currentPage = 1;
+            // ── Step 4: update badges then apply current filters ─────
             updateNavBadges();
-            displayEmails();
-            document.getElementById('topbar-sub').textContent = `${allEmails.length} email${allEmails.length !== 1 ? 's' : ''}`;
+            applyFilters();
         }
 
         // Display emails
@@ -968,31 +1021,40 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // Search emails
+        // Search emails — always searches the full cache so results aren't limited
+        // to whichever category is currently active.  No network call ever made here.
         function searchEmails() {
-            const searchTerm = document.getElementById('search-box').value.toLowerCase();
-            
+            const searchTerm = document.getElementById('search-box').value.toLowerCase().trim();
+
             if (!searchTerm) {
-                loadEmails();
+                // Empty search → restore normal category/priority filtered view
+                applyFilters();
                 return;
             }
 
-            const filtered = allEmails.filter(email => 
-                (email.subject || '').toLowerCase().includes(searchTerm) ||
-                (email.body_text || '').toLowerCase().includes(searchTerm) ||
-                (email.sender?.email || '').toLowerCase().includes(searchTerm) ||
-                (email.sender?.name || '').toLowerCase().includes(searchTerm)
-            );
-
-            allEmails = filtered;
+            // Filter from the full cache (honours current category if set)
+            const priority = document.getElementById('priority-filter').value;
+            allEmails = allEmailsCache.filter(email => {
+                const catMatch = !currentCategory || (email.category || '').toLowerCase() === currentCategory;
+                const priMatch = !priority || (email.priority_level || '').toUpperCase() === priority.toUpperCase();
+                const textMatch =
+                    (email.subject   || '').toLowerCase().includes(searchTerm) ||
+                    (email.body_text || '').toLowerCase().includes(searchTerm) ||
+                    (email.sender?.email || '').toLowerCase().includes(searchTerm) ||
+                    (email.sender?.name  || '').toLowerCase().includes(searchTerm);
+                return catMatch && priMatch && textMatch;
+            });
             currentPage = 1;
             displayEmails();
+            document.getElementById('topbar-sub').textContent =
+                `${allEmails.length} result${allEmails.length !== 1 ? 's' : ''}`;
         }
 
 
         // Show email detail
         async function showEmailDetail(emailId) {
-            const email = allEmails.find(e => e.id === emailId);
+            const email = allEmails.find(e => e.id === emailId)
+                       || allEmailsCache.find(e => e.id === emailId);
             if (!email) return;
 
             document.getElementById('modal-subject').textContent = email.subject || '(No Subject)';
@@ -1115,6 +1177,7 @@
                 const ue = encodeURIComponent(getUserEmail());
                 await fetch(`http://localhost:8000/api/reset?user_email=${ue}`, { method: 'POST' });
                 alert('All data cleared!');
+                allEmailsCache = [];
                 allEmails = [];
                 await loadStats();
                 updateNavBadges();
@@ -1124,27 +1187,8 @@
             }
         }
 
-        // Update sidebar nav badge counts
-        function updateNavBadges() {
-            const counts = {};
-            allEmails.forEach(e => {
-                const cat = (e.category || 'uncategorized').toLowerCase();
-                counts[cat] = (counts[cat] || 0) + 1;
-            });
-            const set = (id, key) => {
-                const el = document.getElementById(id);
-                if (el) el.textContent = counts[key] || 0;
-            };
-            const navTotal = document.getElementById('nav-total');
-            if (navTotal) navTotal.textContent = allEmails.length;
-            set('nav-urgent', 'urgent');
-            set('nav-work', 'work');
-            set('nav-personal', 'personal');
-            set('nav-social', 'social');
-            set('nav-newsletter', 'newsletter');
-            set('nav-promotional', 'promotional');
-            set('nav-spam', 'spam');
-        }
+        // Badges removed — kept as no-op so existing call sites don't break
+        function updateNavBadges() {}
 
         // Toggle user menu
         function toggleUserMenu() {

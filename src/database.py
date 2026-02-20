@@ -1,5 +1,6 @@
 
 import os
+import certifi
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import Optional
 
@@ -14,7 +15,10 @@ class Database:
     def connect(self):
         """Connect to MongoDB"""
         try:
-            self.client = AsyncIOMotorClient(MONGO_URL)
+            self.client = AsyncIOMotorClient(
+                MONGO_URL,
+                tlsCAFile=certifi.where()
+            )
             self.db = self.client[DB_NAME]
             print(f"✅ Connected to MongoDB at {MONGO_URL}")
         except Exception as e:

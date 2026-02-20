@@ -592,20 +592,30 @@
                         localStorage.setItem('provider', 'gmail_oauth');
                         localStorage.setItem('userEmail', gmailEmail);
 
-                        // Step 2: ingest emails from Gmail (this is what was missing)
-                        showStatus('📥 Importing emails from Gmail...', 'info');
+                        // Step 2: ingest emails from Gmail.
+                        // force=false (default) — skips the Gmail API if emails already in DB.
+                        showStatus('📥 Checking for emails in database...', 'info');
                         return fetch('http://localhost:8000/api/ingest/gmail?max_emails=100', { method: 'POST' });
                     })
                     .then(r => r.json())
                     .then(ingestData => {
-                        const count = ingestData.emails_fetched || 0;
-                        showStatus(`⚙️ Classifying ${count} emails...`, 'info');
+                        const skipped = ingestData.status === 'skipped';
+                        const count   = ingestData.emails_fetched || 0;
+                        const total   = ingestData.total_emails   || 0;
 
-                        // Step 3: classify/prioritize the ingested emails
+                        if (skipped) {
+                            // Emails already in DB — skip classification, go straight to dashboard
+                            showStatus(`✅ ${total} emails loaded from database.`, 'success');
+                            return Promise.resolve(null);
+                        }
+
+                        showStatus(`⚙️ Classifying ${count} emails...`, 'info');
+                        // Step 3: classify/prioritize only when we actually fetched new emails
                         return fetch(`http://localhost:8000/api/process-inbox?user_email=${encodeURIComponent(gmailEmail)}`, { method: 'POST' });
                     })
-                    .then(() => {
-                        // Step 4: claim any orphaned emails that belong to this address
+                    .then((res) => {
+                        // Step 4: claim orphaned emails (skip if we skipped ingest)
+                        if (res === null) return Promise.resolve();
                         return fetch(`http://localhost:8000/api/claim-emails?user_email=${encodeURIComponent(gmailEmail)}`, { method: 'POST' });
                     })
                     .then(() => { window.location.href = 'dashboard'; })
